@@ -3,8 +3,8 @@ const http = require("http");
 const { Server } = require("socket.io");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
-const Redis = require("ioredis");
 const cors = require("cors");
+const authRoutes = require("./routes/authRoutes");
 
 dotenv.config();
 
@@ -29,24 +29,20 @@ mongoose
         process.exit(1);
     });
 
-// --- Redis Connection ---
-const redisUrl = process.env.REDIS_URL || "redis://127.0.0.1:6379";
-const redis = new Redis(redisUrl);
-redis.on("connect", () => console.log("✅ Redis connected"));
-redis.on("error", (err) => console.error("❌ Redis error:", err.message));
-
 // --- Socket.io Setup ---
+const redis = require("./config/redis");
+
 const io = new Server(server, {
     cors: { origin: "*", methods: ["GET", "POST"] },
 });
 
 io.on("connection", (socket) => {
-    console.log("🟢 Socket connected:", socket.id);
+    console.log("Socket connected:", socket.id);
 
     socket.on("joinTrip", ({ tripId, userId }) => {
         if (!tripId) return;
         socket.join(tripId);
-        console.log(`👥 user ${userId || "anon"} joined trip room ${tripId}`);
+        console.log(`user ${userId || "anon"} joined trip room ${tripId}`);
     });
 
     socket.on("sendLocation", async ({ tripId, userId, location }) => {
@@ -70,7 +66,7 @@ io.on("connection", (socket) => {
     });
 
     socket.on("disconnect", () => {
-        console.log("🔴 Socket disconnected:", socket.id);
+        console.log("Socket disconnected:", socket.id);
     });
 });
 
@@ -90,10 +86,13 @@ app.get("/api/health", async (req, res) => {
     });
 });
 
+// --- Auth API router ---
+app.use("/api/auth", authRoutes);
+
 // --- Start server ---
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () =>
-    console.log(`🚀 TripSync server running on http://localhost:${PORT}`)
+    console.log(`Server running on http://localhost:${PORT}`)
 );
 
 // Graceful shutdown
