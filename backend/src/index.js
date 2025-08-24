@@ -4,7 +4,9 @@ const { Server } = require("socket.io");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const cors = require("cors");
+const authMiddleware = require("./middlewares/authMiddleware");
 const authRoutes = require("./routes/authRoutes");
+const tripRoutes = require("./routes/tripRoutes");
 
 dotenv.config();
 
@@ -86,8 +88,9 @@ app.get("/api/health", async (req, res) => {
     });
 });
 
-// --- Auth API router ---
+// --- API routes ---
 app.use("/api/auth", authRoutes);
+app.use("/api/trips", authMiddleware, tripRoutes);
 
 // --- Start server ---
 const PORT = process.env.PORT || 5000;
