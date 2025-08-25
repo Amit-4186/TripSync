@@ -4,9 +4,11 @@ const { Server } = require("socket.io");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const cors = require("cors");
+const adminRoutes = require("./routes/adminRoutes");
 const authMiddleware = require("./middlewares/authMiddleware");
 const authRoutes = require("./routes/authRoutes");
 const tripRoutes = require("./routes/tripRoutes");
+const exploreRoutes = require("./routes/exploreRoutes");
 
 dotenv.config();
 
@@ -89,7 +91,9 @@ app.get("/api/health", async (req, res) => {
 });
 
 // --- API routes ---
+app.use("/api/admin", adminRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api", exploreRoutes);
 app.use("/api/trips", authMiddleware, tripRoutes);
 
 // --- Start server ---

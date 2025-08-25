@@ -9,8 +9,21 @@ const memberSchema = new mongoose.Schema(
     { _id: false }
 );
 
+const planItemSchema = new mongoose.Schema(
+    {
+        place: { type: mongoose.Schema.Types.ObjectId, ref: "Place", required: true },
+        day: { type: Number, default: 1 },
+        order: { type: Number, required: true },
+        note: { type: String },
+        visitedAt: { type: Date }
+    },
+    { _id: true }
+);
+
 const tripSchema = new mongoose.Schema(
     {
+        destination: { type: mongoose.Schema.Types.ObjectId, ref: "Destination" },
+        plan: { type: [planItemSchema], default: [] },
         title: { type: String, required: true },
         description: { type: String },
         startDate: { type: Date },

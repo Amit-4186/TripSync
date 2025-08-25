@@ -5,8 +5,8 @@ const User = require("../models/User");
 const redis = require("../config/redis");
 const nodemailer = require("nodemailer");
 
-const ACCESS_EXPIRES = process.env.JWT_ACCESS_EXPIRES || "15d";
-const REFRESH_EXPIRES = process.env.JWT_REFRESH_EXPIRES || "15d";
+const ACCESS_EXPIRES = process.env.JWT_ACCESS_EXPIRES || "24h";
+const REFRESH_EXPIRES = process.env.JWT_REFRESH_EXPIRES || "24h";
 
 function signAccessToken(user) {
     return jwt.sign({ id: user._id.toString(), email: user.email || null }, process.env.JWT_SECRET, {

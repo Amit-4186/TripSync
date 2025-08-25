@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const ctrl = require("../controllers/tripController");
+const plan = require("../controllers/tripPlanController");
 
 // CRUD
 router.post("/", ctrl.createTrip);
@@ -31,5 +32,15 @@ router.post("/:id/rotate-join-code", ctrl.rotateJoinCode);
 
 // locations
 router.get("/:id/locations", ctrl.getLastLocations);
+
+// destination + plan
+router.put("/:id/destination", plan.setDestination);
+router.post("/:id/plan/from-template", plan.createPlanFromTemplate);
+router.post("/:id/plan/custom", plan.createCustomPlan);
+router.get("/:id/plan", plan.getPlan);
+router.put("/:id/plan/reorder", plan.reorderPlan);
+router.post("/:id/plan/:itemId/visited", plan.markVisited);
+router.post("/:id/plan/:itemId/unvisit", plan.unvisit);
+router.get("/:id/progress", plan.getProgress);
 
 module.exports = router;
