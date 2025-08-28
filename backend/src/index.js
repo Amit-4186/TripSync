@@ -22,14 +22,14 @@ app.use(express.json());       // parse JSON bodies
 // --- MongoDB Connection ---
 const mongoUri = process.env.MONGO_URI;
 if (!mongoUri) {
-    console.error("❌ MONGO_URI missing in .env");
+    console.error(" MONGO_URI missing in .env");
     process.exit(1);
 }
 mongoose
     .connect(mongoUri)
-    .then(() => console.log("✅ MongoDB connected"))
+    .then(() => console.log(" MongoDB connected"))
     .catch((err) => {
-        console.error("❌ MongoDB connection error:", err.message);
+        console.error(" MongoDB connection error:", err.message);
         process.exit(1);
     });
 

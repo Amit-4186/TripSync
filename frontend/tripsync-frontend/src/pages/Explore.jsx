@@ -2,14 +2,14 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../lib/api";
 
-/*
-Features:
-- list destinations (GET /destinations)
-- when destination selected, list places with filter category, tag, q (GET /destinations/:id/places)
-- support sorting by name or rating (client side)
-- list rentals (GET /destinations/:id/rentals?type=)
-- list templates (GET /destinations/:id/templates)
-*/
+/**
+ Explore main page:
+ - GET /destinations (show grid)
+ - allow quick "Create Trip" for a destination:
+    * creates trip via POST /trips (title), then immediately PUT /trips/:id/destination with destinationId
+ - after create, navigate to trip detail
+ - also supports clicking a destination to open its places/rentals/templates (same as earlier)
+**/
 
 export default function Explore() {
   const [destinations, setDestinations] = useState([]);
@@ -17,11 +17,9 @@ export default function Explore() {
   const [places, setPlaces] = useState([]);
   const [rentals, setRentals] = useState([]);
   const [templates, setTemplates] = useState([]);
-  const [category, setCategory] = useState("");
-  const [tag, setTag] = useState("");
-  const [q, setQ] = useState("");
-  const [sort, setSort] = useState("name"); // or rating
-  const [typeRental, setTypeRental] = useState("");
+  const [newTripName, setNewTripName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [err, setErr] = useState(null);
 
   useEffect(() => { loadDestinations(); }, []);
 
@@ -29,145 +27,121 @@ export default function Explore() {
     try {
       const res = await api.get("/destinations");
       setDestinations(res.data.data || []);
-    } catch (e) { console.warn(e); }
+    } catch (e) { console.warn(e); setDestinations([]); }
   }
 
-  async function selectDestination(dest) {
+  async function openDestination(dest) {
     setSelectedDest(dest);
-    setCategory("");
-    setTag("");
-    setQ("");
-    setSort("name");
-    // fetch places, rentals, templates
-    await loadPlaces(dest.id || dest._id, { category: "", tag: "", q: "" });
-    await loadRentals(dest.id || dest._id, {});
-    await loadTemplates(dest.id || dest._id);
-  }
-
-  async function loadPlaces(destId, params = {}) {
     try {
-      const res = await api.get(`/destinations/${destId}/places`, { params });
-      setPlaces(res.data.data || []);
-    } catch (e) { console.warn("places", e); setPlaces([]); }
+      const [pRes, rRes, tRes] = await Promise.all([
+        api.get(`/destinations/${dest.id || dest._id}/places`),
+        api.get(`/destinations/${dest.id || dest._id}/rentals`),
+        api.get(`/destinations/${dest.id || dest._id}/templates`),
+      ]);
+      setPlaces(pRes.data.data || []);
+      setRentals(rRes.data.data || []);
+      setTemplates(tRes.data.data || []);
+    } catch (e) {
+      console.warn("open dest", e);
+      setPlaces([]); setRentals([]); setTemplates([]);
+    }
   }
 
-  async function loadRentals(destId, params = {}) {
+  // create trip quickly then set destination
+  async function quickCreateTrip(dest) {
+    if (!newTripName.trim()) return alert("Enter trip name");
+    setCreating(true);
+    setErr(null);
     try {
-      const res = await api.get(`/destinations/${destId}/rentals`, { params });
-      setRentals(res.data.data || []);
-    } catch (e) { console.warn("rentals", e); setRentals([]); }
+      // POST /trips (title)
+      const resCreate = await api.post("/trips", { title: newTripName });
+      const trip = resCreate.data.data;
+      // set destination
+      await api.put(`/trips/${trip.id || trip._id}/destination`, { destinationId: dest.id || dest._id });
+      // reload trip to ensure destination set
+      // const resTrip = await api.get(`/trips/${trip.id || trip._id}`);
+      // navigate to trip page
+      window.location.href = `/app/trips/${trip.id || trip._id}`;
+    } catch (e) {
+      setErr(e.response?.data?.message || "Failed to create trip");
+    } finally { setCreating(false); }
   }
-
-  async function loadTemplates(destId) {
-    try {
-      const res = await api.get(`/destinations/${destId}/templates`);
-      setTemplates(res.data.data || []);
-    } catch (e) { console.warn("templates", e); setTemplates([]); }
-  }
-
-  function applyFilters() {
-    if (!selectedDest) return;
-    loadPlaces(selectedDest.id || selectedDest._id, { category: category || undefined, tag: tag || undefined, q: q || undefined });
-  }
-
-  // client-side sort
-  const sortedPlaces = [...places].sort((a,b) => {
-    if (sort === "name") return (a.name||"").localeCompare(b.name||"");
-    if (sort === "rating") return (b.rating||0) - (a.rating||0);
-    return 0;
-  });
 
   return (
     <div style={{ maxWidth: 1000, margin: "20px auto", padding: 12 }}>
       <h2>Explore Destinations</h2>
-      <div style={{ display: "flex", gap: 12 }}>
-        <div style={{ width: 260 }}>
-          <h4>All Destinations</h4>
-          <ul>
-            {destinations.map(d => (
-              <li key={d.id || d._id}>
-                <button style={{ background: "none", border: "none", cursor: "pointer", textDecoration: selectedDest && (selectedDest.id||selectedDest._id) === (d.id||d._id) ? "underline" : "none" }} onClick={() => selectDestination(d)}>
-                  {d.name}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div style={{ flex: 1 }}>
-          {selectedDest ? (
-            <>
-              <h3>{selectedDest.name}</h3>
-              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                <input placeholder="search" value={q} onChange={(e)=>setQ(e.target.value)} />
-                <input placeholder="tag" value={tag} onChange={(e)=>setTag(e.target.value)} />
-                <select value={category} onChange={(e)=>setCategory(e.target.value)}>
-                  <option value="">All categories</option>
-                  <option value="sightseeing">sightseeing</option>
-                  <option value="cafe">cafe</option>
-                  <option value="restaurant">restaurant</option>
-                  <option value="nature">nature</option>
-                  <option value="adventure">adventure</option>
-                  <option value="museum">museum</option>
-                  <option value="hostel">hostel</option>
-                  <option value="hotel">hotel</option>
-                </select>
-                <button onClick={applyFilters}>Apply</button>
-                <select value={sort} onChange={(e)=>setSort(e.target.value)}>
-                  <option value="name">Sort: name</option>
-                  <option value="rating">Sort: rating</option>
-                </select>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <h4>Places</h4>
-                  {sortedPlaces.length === 0 ? <p>No places</p> : sortedPlaces.map(p => (
-                    <div key={p.id || p._id} style={{ border: "1px solid #eee", padding: 8, marginBottom: 8 }}>
-                      <div><strong>{p.name}</strong> ({p.category})</div>
-                      <div style={{ fontSize: 12 }}>{p.address}</div>
-                      <div style={{ fontSize: 12 }}>Rating: {p.rating || "-"}</div>
-                    </div>
-                  ))}
-                </div>
-
-                <div>
-                  <h4>Rentals</h4>
-                  <div style={{ marginBottom: 8 }}>
-                    <select value={typeRental} onChange={(e)=>setTypeRental(e.target.value)}>
-                      <option value="">All types</option>
-                      <option value="car">car</option>
-                      <option value="bike">bike</option>
-                      <option value="scooter">scooter</option>
-                    </select>
-                    <button onClick={() => loadRentals(selectedDest.id || selectedDest._id, { type: typeRental })} style={{ marginLeft: 8 }}>Filter</button>
-                  </div>
-                  {rentals.length === 0 ? <p>No rentals</p> : rentals.map(r => (
-                    <div key={r.id || r._id} style={{ border: "1px solid #eee", padding: 8, marginBottom: 8 }}>
-                      <div><strong>{r.vendorName}</strong> ({r.type})</div>
-                      <div style={{ fontSize: 12 }}>{r.contactPhone}</div>
-                      <div style={{ fontSize: 12 }}>Price/day: {r.pricePerDay}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ marginTop: 12 }}>
-                <h4>Templates</h4>
-                {templates.length === 0 ? <p>No templates</p> : templates.map(t => (
-                  <div key={t.id || t._id} style={{ border: "1px solid #eee", padding: 6, marginBottom: 6 }}>
-                    <strong>{t.title}</strong>
-                    <div style={{ fontSize: 13 }}>
-                      {t.steps?.map(s => <div key={s.place}>{s.order}. {s.place?.name || s.place}</div>)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : <p>Select a destination to explore places, rentals and templates.</p>}
-        </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+        {destinations.map(d => (
+          <div key={d.id || d._id} style={{ border: "1px solid #eee", padding: 10 }}>
+            <h4>{d.name}</h4>
+            <div style={{ fontSize: 13 }}>{d.description}</div>
+            <div style={{ marginTop: 8 }}>
+              <button onClick={() => openDestination(d)}>Explore</button>
+            </div>
+          </div>
+        ))}
       </div>
-      <p><Link to="/app">← Back to dashboard</Link></p>
+
+      <div style={{ marginTop: 20 }}>
+        <h3>Create quick trip for a destination</h3>
+        <div style={{ display: "flex", gap: 8 }}>
+          <select onChange={(e) => {
+            const id = e.target.value;
+            const dest = destinations.find(x => (x.id || x._id) === id);
+            setSelectedDest(dest);
+          }} defaultValue="">
+            <option value="">Choose destination</option>
+            {destinations.map(d => <option key={d.id || d._id} value={d.id || d._id}>{d.name}</option>)}
+          </select>
+          <input placeholder="Trip name" value={newTripName} onChange={e => setNewTripName(e.target.value)} />
+          <button onClick={() => { if (!selectedDest) return alert("Choose destination"); quickCreateTrip(selectedDest); }} disabled={creating}>
+            {creating ? "Creating..." : "Create Trip"}
+          </button>
+        </div>
+        {err && <div style={{ color: "red" }}>{err}</div>}
+      </div>
+
+      {selectedDest && (
+        <div style={{ marginTop: 24 }}>
+          <h3>Selected: {selectedDest.name}</h3>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <h4>Places</h4>
+              {places.map(p => (
+                <div key={p.id || p._id} style={{ border: "1px solid #eee", padding: 8, marginBottom: 8 }}>
+                  <strong>{p.name}</strong> <small>({p.category})</small>
+                  <div style={{ fontSize: 12 }}>{p.address}</div>
+                </div>
+              ))}
+            </div>
+
+            <div>
+              <h4>Rentals</h4>
+              {rentals.map(r => (
+                <div key={r.id || r._id} style={{ border: "1px solid #eee", padding: 8, marginBottom: 8 }}>
+                  <strong>{r.vendorName}</strong> <small>({r.type})</small>
+                  <div style={{ fontSize: 12 }}>{r.contactPhone}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 12 }}>
+            <h4>Templates</h4>
+            {templates.map(t => (
+              <div key={t.id || t._id} style={{ border: "1px solid #eee", padding: 6, marginBottom: 6 }}>
+                <strong>{t.title}</strong>
+                <div style={{ fontSize: 13 }}>
+                  {(t.steps || []).map(s => <div key={s.place}>{s.order}. {s.place?.name || s.place}</div>)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <p style={{ marginTop: 18 }}><Link to="/app">← Back to dashboard</Link></p>
     </div>
   );
 }

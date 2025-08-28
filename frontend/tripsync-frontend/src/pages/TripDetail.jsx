@@ -3,20 +3,6 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import api from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 
-/*
-Features:
-- show trip basic info (GET /api/trips/:id)
-- set destination (PUT /api/trips/:id/destination) - need /api/destinations list
-- list templates for that destination (GET /api/destinations/:id/templates)
-- create plan from template (POST /api/trips/:id/plan/from-template)
-- custom plan builder: search places (GET /api/destinations/:id/places?q=...) and add steps then POST /api/trips/:id/plan/custom
-- view plan (GET /api/trips/:id/plan)
-- mark visited (POST /api/trips/:id/plan/:itemId/visited)
-- unvisit (POST /api/trips/:id/plan/:itemId/unvisit)
-- progress (GET /api/trips/:id/progress)
-- create invites (POST /api/trips/:id/invites) -> shows dev links
-*/
-
 export default function TripDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -38,6 +24,15 @@ export default function TripDetail() {
   const [inviteEmails, setInviteEmails] = useState("");
   const [inviteLinks, setInviteLinks] = useState([]);
 
+  // New states
+  const [selectedNewOwner, setSelectedNewOwner] = useState("");
+  const [places, setPlaces] = useState([]);
+  const [rentals, setRentals] = useState([]);
+  const [placeFilterQ, setPlaceFilterQ] = useState("");
+  const [placeCategory, setPlaceCategory] = useState("");
+  const [rentalType, setRentalType] = useState("");
+  const [joinCode, setJoinCode] = useState(null);
+
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState(null);
 
@@ -53,10 +48,14 @@ export default function TripDetail() {
     try {
       setErr(null);
       const res = await api.get(`/trips/${id}`);
-      setTrip(res.data.data);
-      if (res.data.data.destination) {
-        setSelectedDest(res.data.data.destination);
-        await loadTemplates(res.data.data.destination);
+      const t = res.data.data;
+      setTrip(t);
+      setSelectedDest(t.destination || "");
+      setJoinCode(t.joinCode || "");
+
+      if (t.destination) {
+        await loadTemplates(t.destination);
+        loadDestinationAssets(t.destination);
       }
     } catch (e) {
       setErr(e.response?.data?.message || "Failed to load trip");
@@ -99,6 +98,21 @@ export default function TripDetail() {
     } catch (e) {
       console.warn("No progress");
       setProgress(null);
+    }
+  }
+
+  async function loadDestinationAssets(destinationId) {
+    try {
+      const [pRes, rRes] = await Promise.all([
+        api.get(`/destinations/${destinationId}/places`),
+        api.get(`/destinations/${destinationId}/rentals`),
+      ]);
+      setPlaces(pRes.data.data || []);
+      setRentals(rRes.data.data || []);
+    } catch (e) {
+      console.warn("Failed to load destination assets", e);
+      setPlaces([]);
+      setRentals([]);
     }
   }
 
@@ -173,11 +187,12 @@ export default function TripDetail() {
 
   async function markVisited(itemId) {
     try {
-      await api.post(`/trips/${id}/plan/${itemId}/visited`, {}); // optional send lat/lng
+      await api.post(`/trips/${id}/plan/${itemId}/visited`, {}); // optionally send lat/lng
       await loadPlan();
       await loadProgress();
     } catch (e) { setErr(e.response?.data?.message || "Failed"); }
   }
+
   async function unvisit(itemId) {
     try {
       await api.post(`/trips/${id}/plan/${itemId}/unvisit`, {});
@@ -202,6 +217,93 @@ export default function TripDetail() {
     } finally { setLoading(false); }
   }
 
+  async function startTrip() {
+    setLoading(true);
+    try {
+      await api.post(`/trips/${id}/start`);
+      await loadTrip();
+    } catch (e) {
+      setErr(e.response?.data?.message || "Failed to start trip");
+    } finally { setLoading(false); }
+  }
+
+  async function completeTrip() {
+    setLoading(true);
+    try {
+      await api.post(`/trips/${id}/complete`);
+      await loadTrip();
+    } catch (e) {
+      setErr(e.response?.data?.message || "Failed to complete trip");
+    } finally { setLoading(false); }
+  }
+
+  async function leaveTrip() {
+    if (!window.confirm("Are you sure you want to leave this trip?")) return;
+    setLoading(true);
+    try {
+      await api.post(`/trips/${id}/leave`);
+      navigate("/app");
+    } catch (e) {
+      setErr(e.response?.data?.message || "Failed to leave trip");
+    } finally { setLoading(false); }
+  }
+
+  async function transferOwnership() {
+    if (!selectedNewOwner) return alert("Select a member to transfer ownership to");
+    if (!window.confirm("Transfer ownership? You will become admin.")) return;
+    setLoading(true);
+    try {
+      await api.post(`/trips/${id}/transfer-ownership`, { toUserId: selectedNewOwner });
+      await loadTrip();
+      alert("Ownership transferred");
+    } catch (e) {
+      setErr(e.response?.data?.message || "Failed to transfer ownership");
+    } finally { setLoading(false); }
+  }
+
+  async function kickMember(memberUserId) {
+    if (!window.confirm("Remove this member from trip?")) return;
+    setLoading(true);
+    try {
+      await api.delete(`/trips/${id}/members/${memberUserId}`);
+      await loadTrip();
+    } catch (e) {
+      setErr(e.response?.data?.message || "Failed to remove member");
+    } finally { setLoading(false); }
+  }
+
+  async function rotateJoinCode() {
+    if (!window.confirm("Rotate join code? Old code will stop working.")) return;
+    setLoading(true);
+    try {
+      const res = await api.post(`/trips/${id}/rotate-join-code`);
+      const code = (res.data && res.data.data && res.data.data.joinCode) ? res.data.data.joinCode : null;
+      setJoinCode(code);
+      await loadTrip();
+    } catch (e) {
+      setErr(e.response?.data?.message || "Failed to rotate code");
+    } finally { setLoading(false); }
+  }
+
+  function doPlaceFilterAndSort() {
+    let out = [...places];
+    if (placeCategory) out = out.filter(p => p.category === placeCategory);
+    if (placeFilterQ) {
+      const q = placeFilterQ.toLowerCase();
+      out = out.filter(p => (p.name || "").toLowerCase().includes(q) || (p.tags || []).some(t => t.toLowerCase().includes(q)));
+    }
+    return out.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  }
+
+  async function filterRentals() {
+    try {
+      const destId = trip?.destination;
+      if (!destId) return;
+      const res = await api.get(`/destinations/${destId}/rentals`, { params: rentalType ? { type: rentalType } : {} });
+      setRentals(res.data.data || []);
+    } catch (e) { console.warn(e); }
+  }
+
   if (!trip) {
     return (
       <div style={{ maxWidth: 900, margin: "24px auto", padding: 16 }}>
@@ -211,13 +313,65 @@ export default function TripDetail() {
     );
   }
 
+  const isOwner = trip.members?.some(m => (m.user && (m.user.id || m.user._id || m.user)) === (trip.owner || (trip.owner.id || trip.owner)));
+  const amOwner = trip.owner && (user?.id === trip.owner || user?.id === (trip.owner?.id || trip.owner?._id || trip.owner));
+
   return (
     <div style={{ maxWidth: 1000, margin: "18px auto", padding: 16 }}>
       <Link to="/app">← Back</Link>
       <h2>{trip.title || trip.name || "Untitled Trip"}</h2>
       <p>Owner: {trip.owner?.name || trip.owner}</p>
       <p>Status: {trip.status}</p>
+      <p>Join code: {joinCode || "—"} {(amOwner || isOwner) && <button onClick={rotateJoinCode} style={{ marginLeft: 8 }}>Rotate</button>}</p>
 
+      {/* New Trip Lifecycle Section */}
+      <section style={{ borderTop: "1px solid #ddd", paddingTop: 12, marginTop: 12 }}>
+        <h3>Trip Lifecycle</h3>
+        <div style={{ display: "flex", gap: 8 }}>
+          {trip.status !== "active" && (amOwner || isOwner) && <button onClick={startTrip} disabled={loading}>Start Trip</button>}
+          {trip.status === "active" && (amOwner || isOwner) && <button onClick={completeTrip} disabled={loading}>Complete Trip</button>}
+          <button onClick={leaveTrip} disabled={loading} style={{ marginLeft: 8 }}>Leave Trip</button>
+        </div>
+      </section>
+
+      {/* New Members Section */}
+      <section style={{ borderTop: "1px solid #ddd", paddingTop: 12, marginTop: 12 }}>
+        <h3>Members</h3>
+        {(!trip.members || trip.members.length === 0) ? <p>No members</p> : (
+          <ul>
+            {trip.members.map(m => {
+              const userObj = m.user && (typeof m.user === "object" ? (m.user.id ? { id: m.user.id, name: m.user.name, email: m.user.email } : { id: m.user._id, name: m.user.name, email: m.user.email }) : { id: m.user });
+              const me = user && (user.id === userObj.id || user.id === userObj._id);
+              return (
+                <li key={userObj.id || userObj._id || userObj}>
+                  <strong>{userObj.name || userObj.email || userObj.id}</strong>
+                  {" "}({m.role}) {me && " — you"}
+                  {(amOwner || isOwner) && m.role !== "owner" && (
+                    <button onClick={() => kickMember(userObj.id || userObj._id || userObj)} style={{ marginLeft: 8 }}>Remove</button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {(amOwner || isOwner) && (
+          <div style={{ marginTop: 8 }}>
+            <h4>Transfer ownership</h4>
+            <select value={selectedNewOwner} onChange={(e) => setSelectedNewOwner(e.target.value)}>
+              <option value="">— select member —</option>
+              {trip.members.filter(m => m.role !== "owner").map(m => {
+                const uid = m.user && (m.user.id || m.user._id || m.user);
+                const label = m.user && (m.user.name || m.user.email || uid);
+                return <option key={uid} value={uid}>{label} ({m.role})</option>;
+              })}
+            </select>
+            <button onClick={transferOwnership} style={{ marginLeft: 8 }}>Transfer</button>
+          </div>
+        )}
+      </section>
+
+      {/* Original Destination Section */}
       <section style={{ borderTop: "1px solid #ddd", paddingTop: 12, marginTop: 12 }}>
         <h3>Destination</h3>
         <form onSubmit={handleSetDestination}>
@@ -230,6 +384,66 @@ export default function TripDetail() {
         <small>Current destination: {trip.destination || "not set"}</small>
       </section>
 
+      {/* New Explore Section */}
+      <section style={{ borderTop: "1px solid #ddd", paddingTop: 12, marginTop: 12 }}>
+        <h3>Explore (places & rentals for this trip destination)</h3>
+        {!trip.destination ? (
+          <p>No destination set for trip. Set a destination first.</p>
+        ) : (
+          <>
+            <div style={{ marginBottom: 8 }}>
+              <input placeholder="search places/tags" value={placeFilterQ} onChange={e => setPlaceFilterQ(e.target.value)} />
+              <select value={placeCategory} onChange={e => setPlaceCategory(e.target.value)} style={{ marginLeft: 8 }}>
+                <option value="">All categories</option>
+                <option value="sightseeing">sightseeing</option>
+                <option value="cafe">cafe</option>
+                <option value="restaurant">restaurant</option>
+                <option value="nature">nature</option>
+                <option value="adventure">adventure</option>
+                <option value="museum">museum</option>
+                <option value="hostel">hostel</option>
+                <option value="hotel">hotel</option>
+              </select>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <h4>Places</h4>
+                {doPlaceFilterAndSort().length === 0 ? <p>No places</p> : doPlaceFilterAndSort().map(p => (
+                  <div key={p.id || p._id} style={{ border: "1px solid #eee", padding: 8, marginBottom: 8 }}>
+                    <div><strong>{p.name}</strong> ({p.category})</div>
+                    <div style={{ fontSize: 12 }}>{p.address}</div>
+                    <div style={{ fontSize: 12 }}>Tags: {(p.tags || []).join(", ")}</div>
+                    <div style={{ fontSize: 12 }}>Rating: {p.rating || "-"}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <h4>Rentals</h4>
+                <div style={{ marginBottom: 8 }}>
+                  <select value={rentalType} onChange={e => setRentalType(e.target.value)}>
+                    <option value="">All types</option>
+                    <option value="car">car</option>
+                    <option value="bike">bike</option>
+                    <option value="scooter">scooter</option>
+                  </select>
+                  <button onClick={filterRentals} style={{ marginLeft: 8 }}>Apply</button>
+                </div>
+                {rentals.length === 0 ? <p>No rentals</p> : rentals.map(r => (
+                  <div key={r.id || r._id} style={{ border: "1px solid #eee", padding: 8, marginBottom: 8 }}>
+                    <div><strong>{r.vendorName}</strong> ({r.type})</div>
+                    <div style={{ fontSize: 12 }}>{r.contactPhone}</div>
+                    <div style={{ fontSize: 12 }}>Price/day: {r.pricePerDay}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* Original Template Section */}
       <section style={{ borderTop: "1px solid #ddd", paddingTop: 12, marginTop: 12 }}>
         <h3>Plan from Template</h3>
         {selectedDest ? (
@@ -243,6 +457,7 @@ export default function TripDetail() {
         ) : <p>Set a destination to see templates.</p>}
       </section>
 
+      {/* Original Custom Plan Builder Section */}
       <section style={{ borderTop: "1px solid #ddd", paddingTop: 12, marginTop: 12 }}>
         <h3>Custom Plan Builder (search places)</h3>
         <form onSubmit={handleSearchPlaces} style={{ display: "flex", gap: 8 }}>
@@ -272,6 +487,7 @@ export default function TripDetail() {
         <button onClick={submitCustomPlan} disabled={loading || customSteps.length === 0}>Submit Custom Plan</button>
       </section>
 
+      {/* Original Plan Section */}
       <section style={{ borderTop: "1px solid #ddd", paddingTop: 12, marginTop: 12 }}>
         <h3>Plan</h3>
         {plan.length === 0 ? <p>No plan yet</p> : (
@@ -290,6 +506,7 @@ export default function TripDetail() {
         )}
       </section>
 
+      {/* Original Progress Section */}
       <section style={{ borderTop: "1px solid #ddd", paddingTop: 12, marginTop: 12 }}>
         <h3>Progress</h3>
         {progress ? (
@@ -302,6 +519,7 @@ export default function TripDetail() {
         ) : <p>No progress data</p>}
       </section>
 
+      {/* Original Invites Section */}
       <section style={{ borderTop: "1px solid #ddd", paddingTop: 12, marginTop: 12 }}>
         <h3>Create Invites (owner/admin)</h3>
         <p>Enter comma-separated emails (dev link will be returned)</p>
