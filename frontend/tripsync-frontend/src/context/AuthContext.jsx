@@ -3,17 +3,24 @@ import api from "../lib/api";
 
 const AuthContext = createContext();
 
+function safeParse(raw) {
+  try {
+    if (!raw || raw === "undefined") return null;
+    return JSON.parse(raw);
+  } catch {
+    console.warn("Invalid JSON in localStorage for ts_user");
+    return null;
+  }
+}
+
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    const raw = localStorage.getItem("ts_user");
-    return raw ? JSON.parse(raw) : null;
-  });
+  const [user, setUser] = useState(() => safeParse(localStorage.getItem("ts_user")));
 
   const isAuthenticated = Boolean(user);
 
   const login = async (email, password) => {
     const res = await api.post("/auth/login", { email, password });
-    const payload = res?.data?.data || res?.data || {}; // 👈 handle nested
+    const payload = res?.data?.data || res?.data || {};
     const accessToken = payload.accessToken;
     const u = payload.user;
 
@@ -58,8 +65,7 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const onStorage = () => {
-      const raw = localStorage.getItem("ts_user");
-      setUser(raw ? JSON.parse(raw) : null);
+      setUser(safeParse(localStorage.getItem("ts_user")));
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);

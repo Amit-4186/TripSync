@@ -23,11 +23,11 @@ export default function Dashboard() {
     e.preventDefault(); 
     setLoading(true); 
     try { 
-      const { data } = await api.post("/trips", { 
-        name, 
-        startDate: startDate || undefined, 
-        endDate: endDate || undefined 
-      }); 
+      const { data } = await api.post("/trips", {
+        title: name,   
+        startDate: startDate || undefined,
+        endDate: endDate || undefined
+});
       setTrips((prev) => [data.data, ...prev]); 
       setName(""); 
       setStartDate(""); 
@@ -74,7 +74,7 @@ setEndDate(e.target.value)} />
           <ul> 
             {trips.map((t) => ( 
               <li key={t.id}> 
-                <Link to={`/app/trips/${t.id}`}>{t.name}</Link> 
+                <Link to={`/app/trips/${t.id}`}>{t.title}</Link> 
               </li> 
             ))} 
           </ul> 
