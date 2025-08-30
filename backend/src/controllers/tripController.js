@@ -377,20 +377,27 @@ exports.rotateJoinCode = async (req, res) => {
 };
 
 // ---------- locations (Redis) ----------
-exports.getLastLocations = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const trip = await Trip.findById(id);
-        if (!trip) return res.status(404).json({ success: false, message: "Trip not found" });
-        if (!findMember(trip, req.user.id)) return res.status(403).json({ success: false, message: "Not a member" });
 
-        const key = `trip:${id}:locations`;
-        const map = await redis.hgetall(key);
-        // return as { userId: {lat,lng,ts} }
-        Object.keys(map).forEach(k => { map[k] = JSON.parse(map[k]); });
-        res.json({ success: true, data: map });
-    } catch (e) {
-        console.error("getLastLocations:", e.message);
-        res.status(500).json({ success: false, message: "Server error" });
+exports.getTripLocations = async (req, res) => {
+    try {
+        const tripId = req.params.id;
+        if (!tripId) return res.status(400).json({ status: "fail", message: "Trip id required" });
+
+        const key = `trip:${tripId}:locations`;
+        const data = await redis.hgetall(key);
+
+        const parsed = {};
+        for (const userId of Object.keys(data || {})) {
+            try {
+                parsed[userId] = JSON.parse(data[userId]);
+            } catch (e) {
+                parsed[userId] = data[userId];
+            }
+        }
+
+        return res.status(200).json({ status: "success", data: parsed });
+    } catch (err) {
+        console.error("getTripLocations error:", err);
+        return res.status(500).json({ status: "error", message: "Server error" });
     }
 };

@@ -31,7 +31,7 @@ router.post("/join/code", ctrl.joinByCode);
 router.post("/:id/rotate-join-code", ctrl.rotateJoinCode);
 
 // locations
-router.get("/:id/locations", ctrl.getLastLocations);
+router.get("/:id/locations", ctrl.getTripLocations);
 
 // destination + plan
 router.put("/:id/destination", plan.setDestination);

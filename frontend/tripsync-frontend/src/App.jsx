@@ -8,6 +8,7 @@ import { useAuth } from "./context/AuthContext";
 import Explore from "./pages/Explore";
 import ExploreDestination from "./pages/ExploreDestination";
 import AcceptInvite from "./pages/AcceptInvite";
+import TripLiveMap from "./components/TripLiveMap";
 
 export default function App() {
     const { isAuthenticated } = useAuth();
@@ -21,6 +22,7 @@ export default function App() {
             <Route element={<ProtectedRoute />}>
                 <Route path="/app" element={<Dashboard />} />
                 <Route path="/app/trips/:id" element={<TripDetail />} />
+                <Route path="/app/trips/:id/track" element={<ProtectedRoute><TripLiveMap /></ProtectedRoute>} />
             </Route>
 
             <Route path="/app/explore/:id" element={<ExploreDestination />} />

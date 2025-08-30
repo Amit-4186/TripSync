@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import api from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import TripLiveMap from "../components/TripLiveMap";
 
 export default function TripDetail() {
   const { id } = useParams();
@@ -32,19 +33,12 @@ export default function TripDetail() {
   const [placeCategory, setPlaceCategory] = useState("");
   const [rentalType, setRentalType] = useState("");
   const [joinCode, setJoinCode] = useState(null);
+  const [showTrackingInline, setShowTrackingInline] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState(null);
 
-  useEffect(() => {
-    if (!id) return;
-    loadTrip();
-    loadDestinations();
-    loadProgress();
-    loadPlan();
-  }, [id]);
-
-  async function loadTrip() {
+  const loadTrip = useCallback(async () => {
     try {
       setErr(null);
       const res = await api.get(`/trips/${id}`);
@@ -60,28 +54,18 @@ export default function TripDetail() {
     } catch (e) {
       setErr(e.response?.data?.message || "Failed to load trip");
     }
-  }
+  }, [id])
 
-  async function loadDestinations() {
+  const loadDestinations = useCallback(async () => {
     try {
       const res = await api.get("/destinations");
       setDestinations(res.data.data || []);
     } catch (e) {
       console.warn("Failed to load destinations:", e);
     }
-  }
+  }, [])
 
-  async function loadTemplates(destId) {
-    if (!destId) { setTemplates([]); return; }
-    try {
-      const res = await api.get(`/destinations/${destId}/templates`);
-      setTemplates(res.data.data || []);
-    } catch (e) {
-      console.warn("Failed to load templates:", e);
-    }
-  }
-
-  async function loadPlan() {
+  const loadPlan = useCallback(async () => {
     try {
       const res = await api.get(`/trips/${id}/plan`);
       setPlan(res.data.data || []);
@@ -89,9 +73,9 @@ export default function TripDetail() {
       console.warn("No plan yet");
       setPlan([]);
     }
-  }
+  }, [id])
 
-  async function loadProgress() {
+  const loadProgress = useCallback(async () => {
     try {
       const res = await api.get(`/trips/${id}/progress`);
       setProgress(res.data.data || null);
@@ -99,7 +83,15 @@ export default function TripDetail() {
       console.warn("No progress");
       setProgress(null);
     }
-  }
+  }, [id])
+
+  useEffect(() => {
+    if (!id) return;
+    loadTrip();
+    loadDestinations();
+    loadProgress();
+    loadPlan();
+  }, [loadPlan, loadDestinations, loadProgress, loadTrip, id]);
 
   async function loadDestinationAssets(destinationId) {
     try {
@@ -113,6 +105,16 @@ export default function TripDetail() {
       console.warn("Failed to load destination assets", e);
       setPlaces([]);
       setRentals([]);
+    }
+  }
+
+  async function loadTemplates(destId) {
+    if (!destId) { setTemplates([]); return; }
+    try {
+      const res = await api.get(`/destinations/${destId}/templates`);
+      setTemplates(res.data.data || []);
+    } catch (e) {
+      console.warn("Failed to load templates:", e);
     }
   }
 
@@ -320,6 +322,21 @@ export default function TripDetail() {
     <div style={{ maxWidth: 1000, margin: "18px auto", padding: 16 }}>
       <Link to="/app">← Back</Link>
       <h2>{trip.title || trip.name || "Untitled Trip"}</h2>
+      <div style={{ marginTop: 12 }}>
+        <button onClick={() => setShowTrackingInline(v => !v)}>
+          {showTrackingInline ? "Hide live tracking" : "Show live tracking"}
+        </button>
+        <button onClick={() => navigate(`/app/trips/${id}/track`)} style={{ marginLeft: 8 }}>
+          Open tracking in full page
+        </button>
+      </div>
+
+      {showTrackingInline && (
+        <div style={{ marginTop: 12 }}>
+          <TripLiveMap tripId={id} />
+        </div>
+      )}
+
       <p>Owner: {trip.owner?.name || trip.owner}</p>
       <p>Status: {trip.status}</p>
       <p>Join code: {joinCode || "—"} {(amOwner || isOwner) && <button onClick={rotateJoinCode} style={{ marginLeft: 8 }}>Rotate</button>}</p>

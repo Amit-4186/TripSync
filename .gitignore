@@ -1,1 +1,16 @@
-ÿþ
+**/.env
+**/node_modules/
+
+**/.vscode/
+**/.idea/
+
+**/build/
+**/dist/
+
+**/.cache/
+**/*.log
+**/logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
