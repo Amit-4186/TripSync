@@ -72,6 +72,7 @@ export default function Dashboard() {
   };
 
   return (
+
     <div style={{ maxWidth: 1000, margin: "24px auto", padding: 16 }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <h2>Welcome, {user?.name}</h2>
@@ -225,8 +226,6 @@ export default function Dashboard() {
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 16 }}>
               {destinations.map((d) => {
-                // 👇 This is the console log you asked for
-                console.log("Destination photo URL:", d.coverImage);
 
                 return (
                   <div

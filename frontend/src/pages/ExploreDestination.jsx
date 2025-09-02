@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import api from "../lib/api"; // Import your API instance
+import api from "../lib/api";
 
 export default function ExploreDestination() {
     const { id } = useParams();

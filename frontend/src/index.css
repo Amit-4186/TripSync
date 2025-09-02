@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+:root {
+  --bg: 255 255 255;
+  --fg: 17 24 39;
+  --muted: 107 114 128;
+  --card: 255 255 255;
+  --border: 229 231 235;
+}
+
+.dark {
+  --bg: 17 24 39;
+  --fg: 243 244 246;
+  --muted: 156 163 175;
+  --card: 31 41 55;
+  --border: 55 65 81;
+}
+
+@layer utilities {
+  .bg-app {
+    background-color: rgb(var(--bg));
+  }
+
+  .text-app {
+    color: rgb(var(--fg));
+  }
+
+  .muted {
+    color: rgb(var(--muted));
+  }
+
+  .card {
+    background-color: rgb(var(--card));
+    box-shadow: 0 2px 10px rgba(189, 31, 31, 0.877);
+  }
+
+  .border-app {
+    border-color: rgb(var(--border));
+  }
+}
