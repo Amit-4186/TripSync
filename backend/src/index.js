@@ -19,7 +19,7 @@ const app = express();
 const server = http.createServer(app);
 
 // --- Middleware ---
-app.use(cors({ origin: "http://localhost:3000", credentials: true }));
+app.use(cors({ origin: "*", credentials: true }));
 app.use(express.json());
 
 // --- MongoDB Connection ---
@@ -40,7 +40,7 @@ mongoose
 // --- Socket.IO Setup ---
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:3000",
+    origin: "*",
     methods: ["GET", "POST"],
     credentials: true,
   },

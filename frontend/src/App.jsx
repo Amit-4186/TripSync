@@ -9,23 +9,36 @@ import Explore from "./pages/Explore";
 import ExploreDestination from "./pages/ExploreDestination";
 import AcceptInvite from "./pages/AcceptInvite";
 import TripLiveMap from "./components/TripLiveMap";
+import AppShell from "./components/layout/AppShell";
 
 export default function App() {
     const { isAuthenticated } = useAuth();
 
     return (
         <Routes>
-            <Route path="/" element={<Navigate to={isAuthenticated ? "/app" : "/login"} replace />} />
+            <Route
+                path="/"
+                element={
+                    <Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />
+                }
+            />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
 
+            {/* Protected routes with AppShell */}
             <Route element={<ProtectedRoute />}>
-                <Route path="/app" element={<Dashboard />} />
-                <Route path="/app/trips/:id" element={<TripDetail />} />
-                <Route path="/app/trips/:id/track" element={<ProtectedRoute><TripLiveMap /></ProtectedRoute>} />
+                <Route element={<AppShell />}>
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/trips/:id" element={<TripDetail />} />
+                    <Route
+                        path="/trips/:id/track"
+                        element={<TripLiveMap />}
+                    />
+                </Route>
             </Route>
 
-            <Route path="/app/explore/:id" element={<ExploreDestination />} />
+            {/* Non-protected routes */}
+            <Route path="/explore/:id" element={<ExploreDestination />} />
             <Route path="/explore" element={<Explore />} />
             <Route path="/trip-invite" element={<AcceptInvite />} />
 
